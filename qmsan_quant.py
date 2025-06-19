@@ -29,6 +29,8 @@ from sklearn.metrics import classification_report
 import numpy as np
 from torch.cuda.amp import autocast, GradScaler
 from torch import amp
+import time
+
 
 scaler = amp.GradScaler('cuda')
 
@@ -152,6 +154,7 @@ if __name__ == "__main__":
         model.train()
         total_loss = 0
         for i, batch in enumerate(dataloader):
+            start_time = time.time()
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             labels = batch['labels'].to(device)
@@ -163,8 +166,12 @@ if __name__ == "__main__":
             scaler.step(optimizer)
             scaler.update()
             total_loss += loss.item()
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+            end_time = time.time()
+            batch_time = end_time - start_time  
             if i % 10 == 0:
-                print(f"Batch {i}/{len(dataloader)} processed")
+                print(f"Batch {i}/{len(dataloader)} processed in {batch_time:.4f} seconds")
         return total_loss / len(dataloader)
 
 
@@ -208,6 +215,7 @@ if __name__ == "__main__":
 
     languages = ["en", "de", "es", "fr", "ru"]
     for lang in languages:
+        start_time = time.time()
         test_file_path = f"./xglue/xglue_full_dataset/NC/xglue.nc.{lang}.test"
         test_df = pd.read_csv(test_file_path, sep="\t", header=None, names=["title", "description", "category"], on_bad_lines='skip', encoding='utf-8')
         test_df['category'] = test_df['category'].map(label2id)
@@ -215,5 +223,9 @@ if __name__ == "__main__":
         test_dataset = test_dataset.rename_column("category", "labels")
         test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
         test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, collate_fn=collate_fn)
-        print(f"\nEvaluation on {lang.upper()} test set:")
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        end_time = time.time()
+        batch_time = end_time - start_time
+        print(f"\nEvaluation on {lang.upper()} test set: {batch_time:.4f} seconds")
         evaluate_model(model, test_dataloader)
