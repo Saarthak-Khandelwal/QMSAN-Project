@@ -167,11 +167,9 @@ if __name__ == "__main__":
             scaler.update()
             total_loss += loss.item()
             if device.type == 'cuda':
-                torch.cuda.synchronize()
-            end_time = time.time()
-            batch_time = end_time - start_time  
+                torch.cuda.synchronize()  
             if i % 10 == 0:
-                print(f"Batch {i}/{len(dataloader)} processed in {batch_time:.4f} seconds")
+                print(f"Batch {i}/{len(dataloader)} processed in {time.time()-start_time:.4f} seconds")
         return total_loss / len(dataloader)
 
 
@@ -223,9 +221,9 @@ if __name__ == "__main__":
         test_dataset = test_dataset.rename_column("category", "labels")
         test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
         test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, collate_fn=collate_fn)
+        start_time = time.time()
         if device.type == 'cuda':
             torch.cuda.synchronize()
-        end_time = time.time()
-        batch_time = end_time - start_time
-        print(f"\nEvaluation on {lang.upper()} test set: {batch_time:.4f} seconds")
+        print(f"\nEvaluation on {lang.upper()} test set:")
         evaluate_model(model, test_dataloader)
+        print(f"Time taken for {lang.upper()} evaluation: {time.time() - start_time:.4f} seconds")
