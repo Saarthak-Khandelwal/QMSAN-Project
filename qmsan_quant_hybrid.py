@@ -10,7 +10,7 @@ DATASET - https://huggingface.co/datasets/microsoft/xglue
 """
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\qenv\Scripts\Activate.ps1
-cd c:/Users/saart/OneDrive/Desktop
+
 python qmsan_quant_hybrid.py
 """
 import pandas as pd
