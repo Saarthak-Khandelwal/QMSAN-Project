@@ -1,18 +1,23 @@
 """
 Python 3.11.5
+
 Hybrid
+
 DATASET - https://huggingface.co/datasets/microsoft/xglue
-
 """
-
-
 
 """
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
 .\qenv\Scripts\Activate.ps1
 
 python qmsan_quant_hybrid.py
 """
+
+# =========================
+# Required Libraries
+# =========================
+
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -26,8 +31,10 @@ import pennylane as qml
 import time
 import numpy as np
 
- # Quantum Circuit Setup 
-# Define quantum device and circuit for use in QMSAN attention
+# =========================
+# Quantum Circuit Setup
+# =========================
+# Define quantum device and variational quantum circuit for use in QMSAN attention
 n_qubits = 4
 n_layers = 2
 dev = qml.device("default.qubit", wires=n_qubits)
@@ -43,8 +50,11 @@ qlayer = qml.qnn.TorchLayer(
     weight_shapes,
 )
 
- # Data Processing Functions 
+# =========================
+# Data Processing Functions
+# =========================
 # Tokenization and collation for HuggingFace datasets
+
 def preprocess_function(examples):
     return tokenizer(examples['description'], padding="max_length", truncation=True, max_length=128)
 
@@ -54,8 +64,11 @@ def collate_fn(batch):
     labels = torch.tensor([item['labels'] for item in batch])
     return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
- # Quantum Mixed-State Attention Layer 
+# =========================
+# Quantum Attention Layer
+# =========================
 # This layer replaces classical attention with quantum-inspired similarity
+
 class QuantumAttentionLayer(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()
@@ -64,6 +77,7 @@ class QuantumAttentionLayer(nn.Module):
         self.vqc = qlayer  # Quantum circuit for attention
 
     def quantum_similarity(self, q, k):
+        # Placeholder: MatMul (can swap for quantum kernel)
         return torch.matmul(q, k.transpose(-2, -1))
 
     def forward(self, embeddings):
@@ -77,12 +91,15 @@ class QuantumAttentionLayer(nn.Module):
         # Weighted sum of values (embeddings)
         return torch.matmul(attn_weights, embeddings)
 
- # Hybrid QMSAN Model 
+# =========================
+# Hybrid QMSAN Model
+# =========================
+
 class HybridQMSAN(nn.Module):
     """
-    Hybrid Transformer model:
-    1) Uses standard XLM-Roberta transformer for all but the last layer.
-    2) Replaces last transformer layer's attention with QuantumAttentionLayer (QMSAN).
+    Hybrid Transformer Model:
+    - Uses standard XLM-Roberta for all but the last layer.
+    - Replaces last transformer layer's attention with QuantumAttentionLayer (QMSAN).
     """
     def __init__(self, num_labels):
         super().__init__()
@@ -93,7 +110,7 @@ class HybridQMSAN(nn.Module):
     def forward(self, input_ids, attention_mask):
         # Get all hidden states from transformer (output_hidden_states=True)
         outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
-        # Use the output of the penultimate transformer layer
+        # Use output of penultimate transformer layer
         penultimate_hidden = outputs.hidden_states[-2]
         # Apply QMSAN attention to penultimate layer output
         attended = self.quantum_attention(penultimate_hidden)
@@ -102,8 +119,15 @@ class HybridQMSAN(nn.Module):
         logits = self.classifier(cls_embedding)
         return logits
 
- # Training and Evaluation Functions 
+# =========================
+# Training and Evaluation Functions
+# =========================
+
 def train_epoch(model, dataloader, optimizer, criterion, device, scaler):
+    """
+    One training epoch with mixed precision.
+    Prints timing and progress every 10 batches.
+    """
     model.train()
     total_loss = 0
     for i, batch in enumerate(dataloader):
@@ -126,6 +150,9 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler):
     return total_loss / len(dataloader)
 
 def evaluate_model(model, dataloader, device, label2id):
+    """
+    Evaluation function reporting classification metrics.
+    """
     model.eval()
     all_preds = []
     all_labels = []
@@ -145,22 +172,31 @@ def evaluate_model(model, dataloader, device, label2id):
     all_preds = all_preds[valid_indices]
     print(classification_report(all_labels, all_preds, target_names=list(label2id.keys())))
 
-#Main Script
+# =========================
+# Main Script
+# =========================
+
 if __name__ == "__main__":
     scaler = GradScaler()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    # Load and preprocess XGLUE News Classification data (English train set)
+    # =========================
+    # Data Loading and Preprocessing
+    # =========================
+
     file_path = "./xglue/xglue_full_dataset/NC/xglue.nc.en.train"
     df = pd.read_csv(file_path, sep="\t", header=None, names=["title", "description", "category"], on_bad_lines='skip', encoding='utf-8')
+
     unique_labels = df['category'].unique()
     label2id = {label: idx for idx, label in enumerate(unique_labels)}
     df['category'] = df['category'].map(label2id)
+
     dataset = Dataset.from_pandas(df)
     split = dataset.train_test_split(test_size=0.2, seed=42)
     train_dataset = split["train"]
     test_dataset = split["test"]
+
     tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     test_dataset = test_dataset.map(preprocess_function, batched=True)
@@ -170,21 +206,31 @@ if __name__ == "__main__":
     test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     train_dataset = train_dataset.select(range(5000))
     test_dataset = test_dataset.select(range(5000))
+
     train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn, num_workers=4)
     test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn, num_workers=4)
 
-    # Instantiate the hybrid model with quantum attention
+    # =========================
+    # Model, Loss, and Optimizer Setup
+    # =========================
+
     model = HybridQMSAN(num_labels=len(label2id)).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=5e-5)
 
-    # Train for 3 epochs and evaluate after each epoch
+    # =========================
+    # Training Loop
+    # =========================
+
     for epoch in range(3):
         loss = train_epoch(model, train_dataloader, optimizer, criterion, device, scaler)
         print(f"Epoch {epoch+1}, Loss: {loss:.4f}")
         evaluate_model(model, test_dataloader, device, label2id)
 
-    # Cross-lingual evaluation on other XGLUE News Classification test sets
+    # =========================
+    # Cross-Lingual Evaluation on All NC Languages
+    # =========================
+
     languages = ["en", "de", "es", "fr", "ru"]
     for lang in languages:
         test_file_path = f"./xglue/xglue_full_dataset/NC/xglue.nc.{lang}.test"
@@ -194,6 +240,7 @@ if __name__ == "__main__":
         test_dataset = test_dataset.rename_column("category", "labels")
         test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
         test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, collate_fn=collate_fn)
+
         start_time = time.time()
         if device.type == 'cuda':
             torch.cuda.synchronize()
