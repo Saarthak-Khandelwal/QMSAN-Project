@@ -7,17 +7,14 @@ DATASET - https://huggingface.co/datasets/microsoft/xglue
 """
 
 """
+Usage:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-
 .\qenv\Scripts\Activate.ps1
 
 python qmsan_quant_hybrid.py
 """
 
-# =========================
 # Required Libraries
-# =========================
-
 import pandas as pd
 import torch
 import torch.nn as nn
