@@ -15,7 +15,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 python qmsan_quant.py
 """
 
-# Required Libraries
+
 from qiskit_aer import Aer, AerSimulator
 from qiskit import QuantumCircuit, transpile
 import pandas as pd
