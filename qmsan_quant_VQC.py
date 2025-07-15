@@ -4,7 +4,9 @@ Python 3.11.5
 Variational Quantum Classifier (VQC) algorithm
 
 DATASET - https://huggingface.co/datasets/microsoft/xglue
+"""
 
+"""
 Usage:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\qenv\Scripts\Activate.ps1
@@ -12,10 +14,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 python qmsan_quant_VQC.py
 """
 
-# =============================
 # Required Libraries
-# =============================
-
 import pandas as pd
 import torch
 import torch.nn as nn
