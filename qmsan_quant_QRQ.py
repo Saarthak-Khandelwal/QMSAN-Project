@@ -1,7 +1,7 @@
 """
 Python 3.11.5
 
-Variational Quantum Classifier (VQC) algorithm
+Quantum Reservoir Computing (QRC)
 
 DATASET - https://huggingface.co/datasets/microsoft/xglue
 
@@ -9,7 +9,7 @@ Usage:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\qenv\Scripts\Activate.ps1
 cd c:/Users/saart/OneDrive/Desktop
-python qmsan_quant_VQC.py
+python qmsan_quant_QRQ.py
 """
 
 # =============================
@@ -30,22 +30,33 @@ import time
 import numpy as np
 
 # =============================
-# Quantum Circuit Setup
+# Quantum Reservoir Computing Setup
 # =============================
 
 n_qubits = 4
-n_layers = 2
+res_depth = 5  # Reservoir depth can be adjusted
+
+# Randomize circuit for static QRC
+np.random.seed(42)
+rand_angles = np.random.uniform(0, 2 * np.pi, (res_depth, n_qubits, 3))
 dev = qml.device("default.qubit", wires=n_qubits)
 
-def vqc_circuit(inputs, weights):
+def qrc_circuit(inputs):
     qml.AngleEmbedding(inputs, wires=range(n_qubits))
-    qml.StronglyEntanglingLayers(weights, wires=range(n_qubits))
+    for d in range(res_depth):
+        for i in range(n_qubits):
+            qml.RX(rand_angles[d, i, 0], wires=i)
+            qml.RY(rand_angles[d, i, 1], wires=i)
+            qml.RZ(rand_angles[d, i, 2], wires=i)
+        # Entangle every pair in a ring structure
+        for i in range(n_qubits - 1):
+            qml.CNOT(wires=[i, i+1])
+        qml.CNOT(wires=[n_qubits-1, 0])
     return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
 
-weight_shapes = {"weights": (n_layers, n_qubits, 3)}
-qlayer = qml.qnn.TorchLayer(
-    qml.QNode(vqc_circuit, dev, interface="torch", diff_method="backprop"),
-    weight_shapes,
+# QRC layer: fixed circuit, no trainable quantum parameters
+qrc_layer = qml.qnn.TorchLayer(
+    qml.QNode(qrc_circuit, dev, interface="torch", diff_method=None), {},  # No params
 )
 
 # =============================
@@ -66,36 +77,36 @@ if __name__ == "__main__":
     # Load training data
     file_path = "./xglue/xglue_full_dataset/NC/xglue.nc.en.train"
     df = pd.read_csv(file_path, sep="\t", header=None, names=["title", "description", "category"], on_bad_lines='skip', encoding='utf-8')
-
+    
     # Generate label2id mapping
     unique_labels = df['category'].unique()
     label2id = {label: idx for idx, label in enumerate(unique_labels)}
     df['category'] = df['category'].map(label2id)
-
-    # Convert to Hugging Face Dataset
+    
+    # Hugging Face Dataset
     dataset = Dataset.from_pandas(df)
 
     # Split into Train and Test Sets (80/20 split)
     split = dataset.train_test_split(test_size=0.2, seed=42)
     train_dataset = split["train"]
-    test_dataset = split["test"]
+    test_dataset  = split["test"]
 
-    # Load multilingual tokenizer
+    # Tokenizer
     tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
 
     # Apply tokenization
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     test_dataset = test_dataset.map(preprocess_function, batched=True)
 
-    # Rename columns for PyTorch compatibility
+    # Rename for PyTorch
     train_dataset = train_dataset.rename_column("category", "labels")
-    test_dataset = test_dataset.rename_column("category", "labels")
+    test_dataset  = test_dataset.rename_column("category", "labels")
 
-    # Set format for PyTorch
+    # PyTorch format
     train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
-    # Reduce sample size for faster experimentation
+    # Reduce for speed
     train_dataset = train_dataset.select(range(5000))
     test_dataset = test_dataset.select(range(5000))
 
@@ -107,24 +118,27 @@ if __name__ == "__main__":
     # Model Definition
     # =============================
 
-    # Quantum attention mechanism using VQC Layer
+    # Quantum attention mechanism using QRC Layer
     class QuantumAttentionLayer(nn.Module):
         def __init__(self, hidden_size):
             super().__init__()
             self.query = nn.Linear(hidden_size, n_qubits)
-            self.key = nn.Linear(hidden_size, n_qubits)
-            self.vqc = qlayer
+            self.key   = nn.Linear(hidden_size, n_qubits)
+            self.qrc   = qrc_layer  # quantum reservoir (fixed)
 
-        def quantum_similarity(self, q, k):
-            # Classical similarity as placeholder
-            return torch.matmul(q, k.transpose(-2, -1))
+        def quantum_reservoir(self, x):
+            # Pass each time step (or token) through static QRC
+            orig_shape = x.shape
+            x = x.view(-1, n_qubits)
+            feats = torch.stack([self.qrc(xi) for xi in x])
+            return feats.view(orig_shape)
 
         def forward(self, embeddings):
             Q = self.query(embeddings)
             K = self.key(embeddings)
-            Q_vqc = self.vqc(Q)
-            K_vqc = self.vqc(K)
-            attn_weights = torch.matmul(Q_vqc, K_vqc.transpose(-2, -1))
+            Q_res = self.quantum_reservoir(Q)
+            K_res = self.quantum_reservoir(K)
+            attn_weights = torch.matmul(Q_res, K_res.transpose(-2, -1))
             attn_weights = attn_weights.softmax(dim=-1)
             return torch.matmul(attn_weights, embeddings)
 
@@ -135,7 +149,6 @@ if __name__ == "__main__":
             self.transformer = XLMRobertaModel.from_pretrained("xlm-roberta-base")
             self.quantum_attention = QuantumAttentionLayer(self.transformer.config.hidden_size)
             self.classifier = nn.Linear(self.transformer.config.hidden_size, num_labels)
-
         def forward(self, input_ids, attention_mask):
             outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
             embeddings = outputs.last_hidden_state
@@ -210,7 +223,7 @@ if __name__ == "__main__":
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         all_labels = np.array(all_labels)
-        all_preds = np.array(all_preds)
+        all_preds  = np.array(all_preds)
         valid_indices = ~np.isnan(all_labels)
         all_labels = all_labels[valid_indices]
         all_preds = all_preds[valid_indices]
@@ -227,7 +240,6 @@ if __name__ == "__main__":
     # =============================
 
     languages = ["en", "de", "es", "fr", "ru"]
-
     for lang in languages:
         test_file_path = f"./xglue/xglue_full_dataset/NC/xglue.nc.{lang}.test"
         test_df = pd.read_csv(test_file_path, sep="\t", header=None, names=["title", "description", "category"], on_bad_lines='skip', encoding='utf-8')

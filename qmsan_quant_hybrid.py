@@ -7,14 +7,19 @@ DATASET - https://huggingface.co/datasets/microsoft/xglue
 """
 
 """
-Usage:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
 .\qenv\Scripts\Activate.ps1
+
+cd c:/Users/saart/OneDrive/Desktop
 
 python qmsan_quant_hybrid.py
 """
 
+# =========================
 # Required Libraries
+# =========================
+
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -127,8 +132,9 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler):
     """
     model.train()
     total_loss = 0
+    start_time = time.time()
     for i, batch in enumerate(dataloader):
-        start_time = time.time()
+        
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
@@ -144,6 +150,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler):
             torch.cuda.synchronize()
         if i % 10 == 0:
             print(f"Batch {i}/{len(dataloader)} processed in {time.time() - start_time:.4f} seconds")
+            start_time = time.time()
     return total_loss / len(dataloader)
 
 def evaluate_model(model, dataloader, device, label2id):

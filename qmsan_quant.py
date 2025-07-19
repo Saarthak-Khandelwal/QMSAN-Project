@@ -11,11 +11,11 @@ DATASET - https://huggingface.co/datasets/microsoft/xglue
 """
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\qenv\Scripts\Activate.ps1
-
+cd c:/Users/saart/OneDrive/Desktop
 python qmsan_quant.py
 """
 
-
+# Required Libraries
 from qiskit_aer import Aer, AerSimulator
 from qiskit import QuantumCircuit, transpile
 import pandas as pd
@@ -153,8 +153,9 @@ if __name__ == "__main__":
     def train_epoch(model, dataloader, optimizer, criterion, device):
         model.train()
         total_loss = 0
+        start_time = time.time()
         for i, batch in enumerate(dataloader):
-            start_time = time.time()
+            
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             labels = batch['labels'].to(device)
@@ -170,6 +171,7 @@ if __name__ == "__main__":
                 torch.cuda.synchronize()  
             if i % 10 == 0:
                 print(f"Batch {i}/{len(dataloader)} processed in {time.time()-start_time:.4f} seconds")
+                start_time = time.time()
         return total_loss / len(dataloader)
 
 
