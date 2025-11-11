@@ -8,7 +8,6 @@ DATASET - https://huggingface.co/datasets/microsoft/xglue
 Usage:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\qenv\Scripts\Activate.ps1
-cd c:/Users/saart/OneDrive/Desktop
 python qmsan_quant_VQC.py
 """
 
@@ -242,3 +241,4 @@ if __name__ == "__main__":
         print(f"\nEvaluation on {lang.upper()} test set:")
         evaluate_model(model, test_dataloader, device, label2id)
         print(f"Evaluation on {lang.upper()} test set completed in {time.time() - start_time:.4f} seconds")
+
