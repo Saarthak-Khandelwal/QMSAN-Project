@@ -11,7 +11,6 @@ DATASET - https://huggingface.co/datasets/microsoft/xglue
 """
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\qenv\Scripts\Activate.ps1
-cd c:/Users/saart/OneDrive/Desktop
 python qmsan_quant.py
 """
 
@@ -230,3 +229,4 @@ if __name__ == "__main__":
         print(f"\nEvaluation on {lang.upper()} test set:")
         evaluate_model(model, test_dataloader)
         print(f"Time taken for {lang.upper()} evaluation: {time.time() - start_time:.4f} seconds")
+
