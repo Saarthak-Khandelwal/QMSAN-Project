@@ -155,7 +155,7 @@ if __name__ == "__main__":
         total_loss = 0
         start_time = time.time()
         for i, batch in enumerate(dataloader):
-            
+            print(f"Loaded batch {i} with size {batch['input_ids'].shape}")
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             labels = batch['labels'].to(device)
@@ -174,6 +174,7 @@ if __name__ == "__main__":
                 start_time = time.time()
         return total_loss / len(dataloader)
 
+    print("Starting training...")
 
     for epoch in range(3):  # Train for 3 epochs
         loss = train_epoch(model, train_dataloader, optimizer, criterion, device)

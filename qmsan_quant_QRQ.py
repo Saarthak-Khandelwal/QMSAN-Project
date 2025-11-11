@@ -26,7 +26,7 @@ from sklearn.metrics import classification_report
 from datasets import Dataset
 from transformers import AutoTokenizer, XLMRobertaModel
 import pennylane as qml
-from pennylane.transforms import batch_input  # <-- Import batch_input transform
+from pennylane.transforms import batch_input
 import time
 import numpy as np
 
